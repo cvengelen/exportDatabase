@@ -23,7 +23,7 @@ config = {
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-t", "--typeFilter", help="boek type filter")
-parser.add_argument("-o", "--outputPath", help="XML output file path", default="~/Documents/Homepage/boekenBoek.xml")
+parser.add_argument("-o", "--outputPath", help="XML output file path", default="boekenBoek.xml")
 args = parser.parse_args()
 
 typeFilter = ""
@@ -78,15 +78,15 @@ try:
         cElementTree.SubElement(rowSubElement, "datum").text = datumStr
         cElementTree.SubElement(rowSubElement, "opmerkingen").text = opmerkingen
 
-    boekenBoekFictieTestFile = open(args.outputPath, mode='w', encoding='utf8', errors="xmlcharrefreplace")
+    boekenBoekXmlFile = open(args.outputPath, mode='w', encoding='utf8', errors="xmlcharrefreplace")
 
     # Print XML file header
-    print("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>", file=boekenBoekFictieTestFile)
-    print("<?xml-stylesheet type=\"text/xsl\" href=\"boekenBoek.xsl\"?>", file=boekenBoekFictieTestFile)
+    print("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>", file=boekenBoekXmlFile)
+    print("<?xml-stylesheet type=\"text/xsl\" href=\"boekenBoek.xsl\"?>", file=boekenBoekXmlFile)
 
     # Write the data as XML
     databaseElementTree = cElementTree.ElementTree(databaseElement)
-    databaseElementTree.write(file_or_filename=boekenBoekFictieTestFile, encoding="utf-8")
+    databaseElementTree.write(file_or_filename=boekenBoekXmlFile, encoding="utf-8")
 
     cursor.close()
     cnx.close()
