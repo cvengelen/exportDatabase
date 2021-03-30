@@ -53,13 +53,14 @@ mysqlConnectorConfig = {
     'user': databaseConfig['boeken']['user'],
     'password': databaseConfig['boeken']['password'],
     'database': databaseConfig['boeken']['database'],
-    'raise_on_warnings': databaseConfig.getboolean('connection', 'raise_on_warnings')
+    'raise_on_warnings': databaseConfig.getboolean('general', 'raise_on_warnings')
 }
 
 try:
     # Setup the MySQL query on table boek of database boeken
     query = ("SELECT boek.boek, type.type, "
-             "uitgever.uitgever, uitgever.isbn_1, uitgever.isbn_2, boek.isbn_3, boek.isbn_4, "
+             "uitgever.uitgever,"
+             "uitgever.isbn_1, uitgever.isbn_2, boek.isbn_3, boek.isbn_4, "
              "status.status, label.label, boek.datum, boek.opmerkingen "
              "FROM boek "
              "LEFT JOIN type ON type.type_id = boek.type_id "
@@ -81,7 +82,7 @@ try:
     #        boek, type, uitgever, isbn_1, isbn_2, isbn_3, isbn_4, status, label, datum, opmerkingen))
 
     # Setup the XML structure
-    databaseElement = cElementTree.Element("database")
+    databaseElement = cElementTree.Element("boeken")
     boekSubElement = cElementTree.SubElement(databaseElement, "boek")
 
     # Define a date object with datetime
