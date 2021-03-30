@@ -1,44 +1,71 @@
 #!/usr/bin/env python3
 
-"""exportBoekenBoekXml.py: Export table titel of database boeken as XML"""
+"""exportBoekenTitelXml.py: Export table titel of database boeken as XML"""
 
 __author__ = "Chris van Engelen"
 __copyright__ = "Copyright 2021"
 
 import sys
+import os.path
 import mysql.connector
+from mysql.connector import errorcode
 import xml.etree.cElementTree as cElementTree
 import datetime
 import argparse
+import configparser
 
-from mysql.connector import errorcode
-
-config = {
-  'user': 'boeken',
-  'password': 'TtBdbCve',
-  'host': '127.0.0.1',
-  'database': 'boeken',
-  'raise_on_warnings': True
-}
-
+# Process command line arguments
 parser = argparse.ArgumentParser()
-parser.add_argument("-t", "--typeFilter", help="boek type filter")
-parser.add_argument("-o", "--outputPath", help="XML output file path", default="boekenTitel.xml")
+defaultConfigPath = "database.ini"
+parser.add_argument("-c", "--configPath", help="database configuration file path (default " + defaultConfigPath + ")",
+                    default=defaultConfigPath)
+defaultStatusFilter = "boek.status_id != 10"
+parser.add_argument("-s", "--statusFilter", help="boek status filter (default \"" + defaultStatusFilter + "\")",
+                    default=defaultStatusFilter)
+parser.add_argument("-t", "--typeFilter", help="boek type filter (default none)")
+defaultOutputPath = "boekenTitel.xml"
+parser.add_argument("-o", "--outputPath", help="XML output file path (default " + defaultOutputPath + ")",
+                    default=defaultOutputPath)
+defaultXslPath = "boekenTitel.xsl"
+parser.add_argument("-x", "--xslPath", help="XSL file path (default " + defaultXslPath + ")",
+                    default=defaultXslPath)
 args = parser.parse_args()
 
-typeFilter = ""
-if args.typeFilter:
-    typeFilter = "AND (" + args.typeFilter + ") "
+# Setup the WHERE clause on boek status and/or type
+whereClause = ""
+if args.statusFilter or args.typeFilter:
+    whereClause = "WHERE "
+    if args.statusFilter:
+        whereClause += "(" + args.statusFilter + ")"
+        if args.typeFilter:
+            whereClause += " AND "
+    if args.typeFilter:
+        whereClause += "(" + args.typeFilter + ")"
+    whereClause += " "
+
+# Check if the database configuration file exists
+if not os.path.isfile(args.configPath):
+    print("Configuration file", args.configPath, "not found")
+    exit(1)
+
+# Read the database configuration file
+databaseConfig = configparser.ConfigParser()
+databaseConfig.read(args.configPath)
+mysqlConnectorConfig = {
+    'host': databaseConfig['connection']['host'],
+    'user': databaseConfig['boeken']['user'],
+    'password': databaseConfig['boeken']['password'],
+    'database': databaseConfig['boeken']['database'],
+    'raise_on_warnings': databaseConfig.getboolean('general', 'raise_on_warnings')
+}
 
 try:
-    cnx = mysql.connector.connect(**config)
-
-    cursor = cnx.cursor()
-
-    query = ("SELECT titel.titel, persoon.persoon, titel.jaar, titel.opmerkingen, "
+    # Setup the MySQL query on table titel of database boeken
+    query = ("SELECT titel.titel, auteurs.auteurs, persoon.persoon, titel.jaar, titel.opmerkingen, "
              "type.type, onderwerp.onderwerp, vorm.vorm, taal.taal, boek.boek, "
              "uitgever.uitgever, status.status, boek.datum "
              "FROM titel "
+             "LEFT JOIN auteurs ON auteurs.auteurs_id = titel.auteurs_id "
              "LEFT JOIN auteurs_persoon ON auteurs_persoon.auteurs_id = titel.auteurs_id "
              "LEFT JOIN persoon ON persoon.persoon_id = auteurs_persoon.persoon_id "
              "LEFT JOIN onderwerp ON onderwerp.onderwerp_id = titel.onderwerp_id "
@@ -47,10 +74,15 @@ try:
              "LEFT JOIN boek on titel.boek_id = boek.boek_id "
              "LEFT JOIN type ON type.type_id = boek.type_id "
              "LEFT JOIN uitgever ON uitgever.uitgever_id = boek.uitgever_id "
-             "LEFT JOIN status ON status.status_id = boek.status_id "
-             "WHERE (boek.status_id != 10) " + typeFilter +
+             "LEFT JOIN status ON status.status_id = boek.status_id " +
+             whereClause +
              "ORDER BY persoon.persoon, titel.titel")
 
+    # Setup a connection to the MySQL database
+    mysqlConnection = mysql.connector.connect(**mysqlConnectorConfig)
+
+    # Execute the query
+    cursor = mysqlConnection.cursor()
     cursor.execute(query)
 
     boekenElement = cElementTree.Element("boeken")
@@ -59,7 +91,7 @@ try:
     # Define a date object with datetime
     datumDate = datetime.date(1, 1, 1)
 
-    for (titel, persoon, jaar, opmerkingen, titel_type, onderwerp, vorm, taal,
+    for (titel, auteurs, persoon, jaar, opmerkingen, titel_type, onderwerp, vorm, taal,
          boek, uitgever, status, datumDate) in cursor:
         # Convert the datum to a string
         datumStr = ""
@@ -74,6 +106,7 @@ try:
         # Store the data as fields of a row
         rowSubElement = cElementTree.SubElement(titelSubElement, "row")
         cElementTree.SubElement(rowSubElement, "titel").text = titel
+        cElementTree.SubElement(rowSubElement, "auteurs").text = auteurs
         cElementTree.SubElement(rowSubElement, "persoon").text = persoon
         cElementTree.SubElement(rowSubElement, "jaar").text = jaarStr
         cElementTree.SubElement(rowSubElement, "opmerkingen").text = opmerkingen
@@ -90,24 +123,25 @@ try:
 
     # Print XML file header
     print("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>", file=boekenTitelXmlFile)
-    print("<?xml-stylesheet type=\"text/xsl\" href=\"boekenTitel.xsl\"?>", file=boekenTitelXmlFile)
+    print("<?xml-stylesheet type=\"text/xsl\" href=\"{}\"?>".format(args.xslPath), file=boekenTitelXmlFile)
 
     # Write the data as XML
     boekenElementTree = cElementTree.ElementTree(boekenElement)
     boekenElementTree.write(file_or_filename=boekenTitelXmlFile, encoding="utf-8")
 
     cursor.close()
-    cnx.close()
+    mysqlConnection.close()
 
-except mysql.connector.Error as err:
-    if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-        print("Something is wrong with your user name or password")
-    elif err.errno == errorcode.ER_BAD_DB_ERROR:
-        print("Database does not exist")
+except configparser.Error as configParserError:
+    print("Configparser error:", configParserError)
+except mysql.connector.Error as mysqlConnectionError:
+    if mysqlConnectionError.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+        print("Something is wrong with user name:", mysqlConnectorConfig['user'],
+              "or password:", mysqlConnectorConfig['password'])
+    elif mysqlConnectionError.errno == errorcode.ER_BAD_DB_ERROR:
+        print("Database", mysqlConnectorConfig['database'], "does not exist")
     else:
-        print(err)
-
-    cnx.close()
+        print("MySQL error:", mysqlConnectionError)
     sys.exit(1)
 else:
-    cnx.close()
+    print("XML file", args.outputPath, "successfully generated")
