@@ -23,9 +23,7 @@ defaultStatusFilter = "boek.status_id != 10"
 parser.add_argument("-s", "--statusFilter", help="boek status filter (default \"" + defaultStatusFilter + "\")",
                     default=defaultStatusFilter)
 parser.add_argument("-t", "--typeFilter", help="boek type filter (default none)")
-defaultOutputPath = "boekenTitel.xml"
-parser.add_argument("-o", "--outputPath", help="XML output file path (default " + defaultOutputPath + ")",
-                    default=defaultOutputPath)
+parser.add_argument("-o", "--outputPath", help="XML output file path (default none)")
 defaultXslPath = "boekenTitel.xsl"
 parser.add_argument("-x", "--xslPath", help="XSL file path (default " + defaultXslPath + ")",
                     default=defaultXslPath)
@@ -119,7 +117,8 @@ try:
         cElementTree.SubElement(rowSubElement, "status").text = status
         cElementTree.SubElement(rowSubElement, "datum").text = datumStr
 
-    boekenTitelXmlFile = open(args.outputPath, mode='w', encoding='utf8', errors="xmlcharrefreplace")
+    boekenTitelXmlFile = open(args.outputPath, mode='w', encoding='utf8', errors="xmlcharrefreplace") \
+        if args.outputPath else sys.stdout
 
     # Print XML file header
     print("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>", file=boekenTitelXmlFile)
@@ -128,6 +127,9 @@ try:
     # Write the data as XML
     boekenElementTree = cElementTree.ElementTree(boekenElement)
     boekenElementTree.write(file_or_filename=boekenTitelXmlFile, encoding="utf-8")
+
+    if args.outputPath:
+        boekenTitelXmlFile.close()
 
     cursor.close()
     mysqlConnection.close()
@@ -144,4 +146,5 @@ except mysql.connector.Error as mysqlConnectionError:
         print("MySQL error:", mysqlConnectionError)
     sys.exit(1)
 else:
-    print("XML file", args.outputPath, "successfully generated")
+    if args.outputPath:
+        print("XML file", args.outputPath, "successfully generated")

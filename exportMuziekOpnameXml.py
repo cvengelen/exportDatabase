@@ -22,13 +22,10 @@ defaultStatusFilter = "(medium.medium_status_id != 1) AND (medium.medium_status_
 parser.add_argument("-s", "--statusFilter", help="medium status filter (default \"" + defaultStatusFilter + "\")",
                     default=defaultStatusFilter)
 parser.add_argument("-g", "--genreFilter", help="muziek genre filter (default none)")
-defaultOutputPath = "muziekOpname.xml"
-parser.add_argument("-o", "--outputPath", help="XML output file path (default " + defaultOutputPath + ")",
-                    default=defaultOutputPath)
+parser.add_argument("-o", "--outputPath", help="XML output file path (default none)")
 defaultXslPath = "muziekOpname.xsl"
 parser.add_argument("-x", "--xslPath", help="XSL file path (default " + defaultXslPath + ")",
                     default=defaultXslPath)
-
 args = parser.parse_args()
 
 # Setup the WHERE clause on muziek status and/or genre
@@ -110,7 +107,8 @@ try:
         cElementTree.SubElement(rowSubElement, "producers").text = producers
         cElementTree.SubElement(rowSubElement, "medium_titel").text = mediumTitel
 
-    muziekOpnameXmlFile = open(args.outputPath, mode='w', encoding='utf8', errors="xmlcharrefreplace")
+    muziekOpnameXmlFile = open(args.outputPath, mode='w', encoding='utf8', errors="xmlcharrefreplace") \
+        if args.outputPath else sys.stdout
 
     # Print XML file header
     print("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>", file=muziekOpnameXmlFile)
@@ -119,6 +117,9 @@ try:
     # Write the data as XML
     databaseElementTree = cElementTree.ElementTree(databaseElement)
     databaseElementTree.write(file_or_filename=muziekOpnameXmlFile, encoding="utf-8")
+
+    if args.outputPath:
+        muziekOpnameXmlFile.close()
 
     cursor.close()
     mysqlConnection.close()
@@ -135,4 +136,5 @@ except mysql.connector.Error as mysqlConnectionError:
         print("MySQL error:", mysqlConnectionError)
     sys.exit(1)
 else:
-    print("XML file", args.outputPath, "successfully generated")
+    if args.outputPath:
+        print("XML file", args.outputPath, "successfully generated")
